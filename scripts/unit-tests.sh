@@ -9,6 +9,8 @@
 # Disable colored output to avoid dirtying the log
 export GTEST_COLOR=no
 export SOFA_COLOR_TERMINAL=no
+PATH_RESET=$PATH
+
 
 usage() {
     echo "Usage: unit-tests.sh (run|print-summary) <build-dir> <src-dir> [references-dir]"
@@ -403,3 +405,5 @@ elif [[ "$command" = print-summary ]]; then
 else
     usage
 fi
+
+export PATH=$PATH_RESET
