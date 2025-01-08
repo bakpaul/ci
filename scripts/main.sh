@@ -322,7 +322,7 @@ fi
 # Compile
 echo "[BEGIN] Build ($(time-date))"
 time_millisec_build_begin="$(time-millisec)"
-"$SCRIPT_DIR/compile.sh" "$BUILD_DIR" "$CONFIG"
+"$SCRIPT_DIR/compile.sh" "$SRC_DIR" "$BUILD_DIR" "$CONFIG"
 dashboard-notify "status=success"
 github_status="success"
 github_message="Build OK."
