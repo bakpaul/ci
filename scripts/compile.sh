@@ -13,19 +13,23 @@ set -o errexit # Exit on error
 ### Checks
 
 usage() {
-    echo "Usage: compile.sh <build-dir> <config> <build-options>"
+    echo "Usage: compile.sh <src-dir> <build-dir> <config> <build-options>"
 }
 
-if [ "$#" -ge 2 ]; then
+if [ "$#" -ge 3 ]; then
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     . "$SCRIPT_DIR"/utils.sh
 
-    BUILD_DIR="$(cd "$1" && pwd)"
-    CONFIG="$2"
+    SRC_DIR="$(cd "$1" && pwd)"
+    if vm-is-windows; then
+        SRC_DIR="$(cd $1 && pwd -W)"
+    fi
+    BUILD_DIR="$(cd "$2" && pwd)"
+    CONFIG="$3"
     PLATFORM="$(get-platform-from-config "$CONFIG")"
     COMPILER="$(get-compiler-from-config "$CONFIG")"
     ARCHITECTURE="$(get-architecture-from-config "$CONFIG")"
-    BUILD_OPTIONS="${*:3}"
+    BUILD_OPTIONS="${*:4}"
     if [ -z "$BUILD_OPTIONS" ]; then
         BUILD_OPTIONS="$(get-build-options)" # use env vars (Jenkins)
     fi
@@ -54,6 +58,31 @@ rm -f "$BUILD_DIR/make-failed"
 ( call-make "$BUILD_DIR" "all" 2>&1 || touch "$BUILD_DIR/make-failed" ) | tee "$BUILD_DIR/make-output.txt"
 
 if in-array "build-release-package" "$BUILD_OPTIONS"; then
+    echo "-------------- Start Stubfiles generation --------------" | tee -a "$BUILD_DIR/make-output.txt"
+    export SOFA_ROOT="$BUILD_DIR"
+    if vm-is-windows; then
+        # Avoid "libpython3X not found"
+        if [ -e "$VM_PYTHON3_EXECUTABLE" ]; then
+            pythonroot="$(dirname $VM_PYTHON3_EXECUTABLE)"
+            pythonroot="$(cd "$pythonroot" && pwd)"
+            export PATH="$pythonroot:$pythonroot/DLLs:$pythonroot/Lib:$PATH_RESET"
+        fi
+        PYTHON_SCRIPT_DIR=$(cd "$SRC_DIR/applications/plugins/SofaPython3/scripts" && pwd -W )
+        PYTHON_SITE_PACKAGE_DIR=$(cd "$BUILD_DIR/lib/python3/site-packages" && pwd -W )
+        export PYTHONPATH="$PYTHON_SITE_PACKAGE_DIR:$PYTHONPATH"
+
+    else
+        PYTHON_SCRIPT_DIR=$(cd "$SRC_DIR/applications/plugins/SofaPython3/scripts" && pwd )
+        PYTHON_SITE_PACKAGE_DIR=$(cd "$BUILD_DIR/lib/python3/site-packages" && pwd )
+        export PYTHONPATH="$PYTHON_SITE_PACKAGE_DIR:$PYTHONPATH"
+    fi
+
+    python_exe="$(find-python)"
+    if [ -n "$python_exe" ]; then
+        echo "Launching the stub generation with '$python_exe ${PYTHON_SCRIPT_DIR}/generate_stubs.py -d $PYTHON_SITE_PACKAGE_DIR -m Sofa --use_pybind11'" | tee -a "$BUILD_DIR/make-output.txt"
+        $python_exe "${PYTHON_SCRIPT_DIR}/generate_stubs.py" -d "$PYTHON_SITE_PACKAGE_DIR" -m Sofa --use_pybind11 | tee -a "$BUILD_DIR/make-output.txt"
+    fi
+    echo "--------------- End Stubfiles generation ---------------" | tee -a "$BUILD_DIR/make-output.txt"
     echo "-------------- Start packaging --------------" | tee -a "$BUILD_DIR/make-output.txt"
     ( call-make "$BUILD_DIR" "package" 2>&1 || touch "$BUILD_DIR/make-failed" ) | tee -a "$BUILD_DIR/make-output.txt"
     echo "--------------- End packaging ---------------" | tee -a "$BUILD_DIR/make-output.txt"
