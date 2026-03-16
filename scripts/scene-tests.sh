@@ -31,7 +31,7 @@ if [ "$#" -ge 3 ]; then
     command="$1"
     build_dir="$(cd $2 && pwd)"
     src_dir="$(cd $3 && pwd)"
-    output_dir="$4/scene-tests"
+    output_dir="${4%/}/scene-tests"
 
 
     if [ "$#" -eq 5 ]; then
@@ -221,10 +221,10 @@ list-scene-directories() {
 
 get-output-relative-dir() {
   local path="$1"
-  if [[ "$path" == "$src_dir"* ]]; then
-      echo "${path#$src_dir}"
+  if [[ "$path" == "$build_dir"* ]]; then
+        echo "applications/plugins/${path#${build_dir}/external_directories/fetched/}"
   else
-      echo "applications/plugins/${path#${build_dir}/external_directories/fetched/}"
+        echo "${path#$src_dir}"
   fi
 }
 
