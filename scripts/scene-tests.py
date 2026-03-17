@@ -203,7 +203,7 @@ def list_scene_directories():
             ]:
                 if os.path.exists(scene_dir):
                     log(f"Plugin {plugin}: examples/ or scenes/ directory found.")
-                    rel_dir = os.path.relpath(scene_dir, src_dir)
+                    rel_dir = get_output_relative_dir(scene_dir)
                     os.makedirs(os.path.join(output_dir, rel_dir), exist_ok=True)
                     directories.append(scene_dir)
                     scene_dir_found = True
@@ -217,7 +217,11 @@ def list_scene_directories():
 
 def get_output_relative_dir(path):
     """Get the relative directory for output."""
-    if path.startswith(src_dir):
+    # Check if the path is in the external_directories/fetched directory
+    fetched_path = os.path.join(build_dir, 'external_directories', 'fetched')
+    if path.startswith(fetched_path):
+        return f"applications/plugins/{path[len(fetched_path):].lstrip('/')}"
+    elif path.startswith(src_dir):
         return path[len(src_dir):].lstrip('/')
     else:
         return f"applications/plugins/{path[len(os.path.join(build_dir, 'external_directories', 'fetched')):].lstrip('/')}"
