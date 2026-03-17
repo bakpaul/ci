@@ -113,7 +113,8 @@ def list_scenes(directory):
         for file in files:
             if file.endswith('.pyscn'):
                 rel_path = os.path.relpath(os.path.join(root, file), directory)
-                if not re.search(scenes_scn_grep, rel_path):
+                # Match the bash behavior: filter out files whose basename matches a .scn file
+                if not any(os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0] for scn in scenes_scn):
                     scenes_pyscn.append(rel_path)
 
     # Find .py files
@@ -121,7 +122,8 @@ def list_scenes(directory):
         for file in files:
             if file.endswith('.py'):
                 rel_path = os.path.relpath(os.path.join(root, file), directory)
-                if not re.search(scenes_scn_grep, rel_path):
+                # Match the bash behavior: filter out files whose basename matches a .scn file
+                if not any(os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0] for scn in scenes_scn):
                     scenes_py.append(rel_path)
 
     # Combine and sort
@@ -263,7 +265,7 @@ def create_directories():
 
             # Add to all-scenes.txt
             with open(os.path.join(output_dir, "all-scenes.txt"), "a") as f:
-                f.write(os.path.join(path, scene) + "\n")
+                f.write(os.path.abspath(os.path.join(path, scene)) + "\n")
 
 def parse_options_files():
     """Parse .scene-tests files for options."""
@@ -491,13 +493,17 @@ def ignore_scenes_with_missing_plugins():
     """Ignore scenes with missing plugins."""
     log("Searching for missing plugins...")
 
+    log(f"DEBUG: all-tested-scenes.txt exists: {os.path.exists(os.path.join(output_dir, 'all-tested-scenes.txt'))}")
     if not os.path.exists(os.path.join(output_dir, "all-tested-scenes.txt")):
         log("all-tested-scenes.txt not found.")
         return
 
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "r") as f:
         tested_scenes = f.read().splitlines()
+    log(f"DEBUG: all-tested-scenes.txt has {len(tested_scenes)} scenes before processing missing plugins")
 
+
+    scenes_to_remove = []
     for scene in tested_scenes:
         if not os.path.exists(scene):
             continue
@@ -516,29 +522,32 @@ def ignore_scenes_with_missing_plugins():
 
         for line in lines:
             if 'RequiredPlugin' in line:
+                # Skip lines that contain "RequiredPlugins" as a node name
+                if 'RequiredPlugins' in line and 'Node' in line:
+                    continue
+                
                 plugin_match = None
                 if 'pluginName' in line:
-                    plugin_match = re.search(r'pluginName[\s]*=[\s]*[\'"]([^\'\"]*)[\'\"]', line)
+                    plugin_match = re.search(r'pluginName[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line)
                 elif 'name' in line:
-                    plugin_match = re.search(r'name[\s]*=[\s]*[\'"]([^\'\"]*)[\'\"]', line)
+                    plugin_match = re.search(r'name[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line)
                 
                 if plugin_match:
-                    plugin = plugin_match.group(1)
-                else:
-                    log(f"  Warning: unknown RequiredPlugin found in {scene}")
-                    break
+                    plugins = plugin_match.group(1).split()
+                    for plugin in plugins:
+                        lib = get_lib(plugin)
+                        if not lib:
+                            scenes_to_remove.append(scene)
+                            if not os.path.exists(os.path.join(output_dir, "all-ignored-scenes.txt")) or scene not in open(os.path.join(output_dir, "all-ignored-scenes.txt")).read():
+                                log(f"  ignore {scene}: missing plugin \"{plugin}\"")
+                                with open(os.path.join(output_dir, "all-ignored-scenes.txt"), "a") as f:
+                                    f.write(scene + "\n")
+                            break
 
-                lib = get_lib(plugin)
-                if not lib:
-                    if scene in tested_scenes:
-                        tested_scenes = [s for s in tested_scenes if s != scene]
-                        with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
-                            f.write('\n'.join(tested_scenes) + "\n")
-
-                        if not os.path.exists(os.path.join(output_dir, "all-ignored-scenes.txt")) or scene not in open(os.path.join(output_dir, "all-ignored-scenes.txt")).read():
-                            log(f"  ignore {scene}: missing plugin \"{plugin}\"")
-                            with open(os.path.join(output_dir, "all-ignored-scenes.txt"), "a") as f:
-                                f.write(scene + "\n")
+    # Remove scenes with missing plugins from tested_scenes
+    tested_scenes = [scene for scene in tested_scenes if scene not in scenes_to_remove]
+    with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
+        f.write('\n'.join(tested_scenes) + "\n")
 
     log("Searching for missing plugins: done.")
 
@@ -572,6 +581,9 @@ def ignore_scenes_python_without_createscene():
                                 f.write(scene + "\n")
             except Exception as e:
                 log(f"  Warning: could not read {scene}: {e}")
+
+    with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
+        f.write('\n'.join(tested_scenes) + "\n")
 
     log("Searching for unwanted python scripts: done.")
 
@@ -625,12 +637,12 @@ def do_test_all_scenes(tested_scenes, thread_num):
         if scene.endswith(".py") or scene.endswith(".pyscn"):
             options += " -l SofaPython3"
 
-        run_sofa_cmd = f"{run_sofa} {options} {scene} >> {os.path.join(output_dir, subpath, 'output.txt')} 2>&1"
         timeout = 30  # Default
         if os.path.exists(os.path.join(output_dir, subpath, "timeout.txt")):
             with open(os.path.join(output_dir, subpath, "timeout.txt"), "r") as f:
                 timeout = int(f.read())
 
+        run_sofa_cmd = f"{run_sofa} {options} {scene}"
         with open(os.path.join(output_dir, subpath, "command.txt"), "w") as f:
             f.write(run_sofa_cmd)
 
@@ -639,26 +651,46 @@ def do_test_all_scenes(tested_scenes, thread_num):
         with open(os.path.join(output_dir, subpath, "output.txt"), "w") as f:
             f.write("\n------------------------------------------\n\n")
             f.write(f"Running scene-test {scene}\n")
-            f.write(f"Calling: {SCRIPT_DIR}/timeout.sh {os.path.join(output_dir, subpath, 'runSofa')} {run_sofa_cmd} {timeout}\n\n")
+            f.write(f"Calling: {SCRIPT_DIR}/timeout.sh {os.path.join(output_dir, subpath, 'runSofa')} '{run_sofa_cmd}' {timeout}\n\n")
 
         begin_millisec = int(time.time() * 1000)
-        subprocess.run([os.path.join(SCRIPT_DIR, "timeout.sh"), os.path.join(output_dir, subpath, "runSofa"), run_sofa_cmd, str(timeout)])
+        timeout_script = os.path.join(SCRIPT_DIR, "timeout.sh")
+        timeout_id = os.path.join(output_dir, subpath, "runSofa")
+        
+        # Redirect stdout and stderr to output.txt
+        output_file = os.path.join(output_dir, subpath, "output.txt")
+        with open(output_file, "a") as f:
+            subprocess.run(
+                [timeout_script, timeout_id, run_sofa_cmd, str(timeout)],
+                stdout=f,
+                stderr=f,
+                text=True
+            )
         end_millisec = int(time.time() * 1000)
 
         elapsed_millisec = end_millisec - begin_millisec
         elapsed_sec = f"{elapsed_millisec // 1000}.{elapsed_millisec % 1000:03d}"
 
-        if os.path.exists(os.path.join(output_dir, subpath, "runSofa.timeout")):
+        if os.path.exists(f"{timeout_id}.timeout"):
             log(f"Timeout after {timeout} seconds ({elapsed_sec})! {scene}")
             with open(os.path.join(output_dir, subpath, "status.txt"), "w") as f:
                 f.write("timeout")
             with open(os.path.join(output_dir, subpath, "output.txt"), "a") as f:
                 f.write("\n\nINFO: Abort caused by timeout.\n")
-            os.remove(os.path.join(output_dir, subpath, "runSofa.timeout"))
+            os.remove(f"{timeout_id}.timeout")
             shutil.copy(os.path.join(output_dir, subpath, "timeout.txt"), os.path.join(output_dir, subpath, "duration.txt"))
         else:
-            if os.path.exists(os.path.join(output_dir, subpath, "runSofa.exit_code")):
-                shutil.copy(os.path.join(output_dir, subpath, "runSofa.exit_code"), os.path.join(output_dir, subpath, "status.txt"))
+            exit_code_file = f"{timeout_id}.exit_code"
+            if os.path.exists(exit_code_file):
+                with open(exit_code_file, "r") as f:
+                    status = f.read().strip()
+                with open(os.path.join(output_dir, subpath, "status.txt"), "w") as f:
+                    f.write(status)
+                os.remove(exit_code_file)
+            else:
+                log(f"Warning: No exit code file found for {scene}")
+                with open(os.path.join(output_dir, subpath, "status.txt"), "w") as f:
+                    f.write("1")
             
             elapsed_sec_real = None
             if os.path.exists(os.path.join(output_dir, subpath, "output.txt")):
@@ -675,34 +707,40 @@ def do_test_all_scenes(tested_scenes, thread_num):
                 with open(os.path.join(output_dir, subpath, "duration.txt"), "w") as f:
                     f.write(elapsed_sec)
 
-        if os.path.exists(os.path.join(output_dir, subpath, "runSofa.exit_code")):
-            os.remove(os.path.join(output_dir, subpath, "runSofa.exit_code"))
-
 def test_all_scenes():
     """Test all scenes."""
     log("Scene testing in progress...")
 
+    log(f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes before shuf")
     # Shuffle the scenes if shuf is available
     if shutil.which("shuf"):
-        subprocess.run(["shuf", os.path.join(output_dir, "all-tested-scenes.txt")], stdout=open(os.path.join(output_dir, "all-tested-scenes.txt"), "w"))
+        subprocess.run(["shuf", os.path.join(output_dir, "all-tested-scenes.txt")], stdout=open(os.path.join(output_dir, "all-tested-scenes.txt.shuf"), "w"))
+        shutil.move(os.path.join(output_dir, "all-tested-scenes.txt.shuf"), os.path.join(output_dir, "all-tested-scenes.txt"))
+    log(f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes after shuf")
 
     if not os.path.exists(os.path.join(output_dir, "all-tested-scenes.txt")):
         log("all-tested-scenes.txt not found.")
         return
 
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "r") as f:
-        total_lines = len(f.readlines())
+        tested_scenes = f.read().splitlines()
+    log(f"DEBUG: all-tested-scenes.txt has {len(tested_scenes)} scenes after reading")
+    
+    if not tested_scenes:
+        log("all-tested-scenes.txt is empty. No scenes to test.")
+        return
 
-    lines_per_thread = (total_lines // MAX_PARALLEL_TESTS) + 1
+    lines_per_thread = (len(tested_scenes) // MAX_PARALLEL_TESTS) + 1
     subprocess.run(["split", "-l", str(lines_per_thread), os.path.join(output_dir, "all-tested-scenes.txt"), os.path.join(output_dir, "all-tested-scenes_part-")])
 
     threads = []
-    for i in range(MAX_PARALLEL_TESTS):
-        part_file = os.path.join(output_dir, f"all-tested-scenes_part-{chr(97 + i)}")
-        if os.path.exists(part_file):
-            with open(part_file, "r") as f:
-                tested_scenes = f.read().splitlines()
-            thread = threading.Thread(target=do_test_all_scenes, args=(tested_scenes, i + 1))
+    thread_num = 0
+    for file in glob.glob(os.path.join(output_dir, "all-tested-scenes_part-*")):
+        thread_num += 1
+        if os.path.exists(file):
+            with open(file, "r") as f:
+                part_scenes = f.read().splitlines()
+            thread = threading.Thread(target=do_test_all_scenes, args=(part_scenes, thread_num))
             thread.start()
             threads.append(thread)
 
