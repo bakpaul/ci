@@ -22,29 +22,40 @@ src_dir = None
 output_dir = None
 MAX_PARALLEL_TESTS = 1
 
+
 def usage():
     """Print usage information."""
-    print("Usage: scene-tests.py [run|count-warnings|count-errors|print-summary] <build-dir> <src-dir> <output_dir> <max_parallel-tests>")
+    print(
+        "Usage: scene-tests.py [run|count-warnings|count-errors|print-summary] <build-dir> <src-dir> <output_dir> <max_parallel-tests>"
+    )
+
 
 def filter_out_comments(text):
     """Remove comments from text."""
-    return re.sub(r'#.*', '', text)
+    return re.sub(r"#.*", "", text)
+
 
 def remove_leading_blanks(text):
     """Remove leading blanks from text."""
-    return re.sub(r'^\s*', '', text)
+    return re.sub(r"^\s*", "", text)
+
 
 def remove_trailing_blanks(text):
     """Remove trailing blanks from text."""
-    return re.sub(r'\s*$', '', text)
+    return re.sub(r"\s*$", "", text)
+
 
 def delete_blank_lines(text):
     """Delete blank lines from text."""
-    return '\n'.join(line for line in text.split('\n') if line.strip())
+    return "\n".join(line for line in text.split("\n") if line.strip())
+
 
 def clean_line(text):
     """Clean a line by removing comments, leading/trailing blanks, and blank lines."""
-    return delete_blank_lines(remove_trailing_blanks(remove_leading_blanks(filter_out_comments(text))))
+    return delete_blank_lines(
+        remove_trailing_blanks(remove_leading_blanks(filter_out_comments(text)))
+    )
+
 
 def log(message):
     """Log a message to stderr and to the log file."""
@@ -54,32 +65,48 @@ def log(message):
         f.write(message + "\n")
     sys.stderr.write(message + "\n")
 
+
 def option_is_well_formed(line):
     """Check if an option line is well-formed."""
     pattern = r'^[^\s]+(\s+"[^"]*")+$'
     return bool(re.match(pattern, line.strip()))
 
+
 def option_split_args(line):
-    """Split arguments from an option line."""
+    """Split arguments from an option line.
+
+    Example: 'ignore "file.scn" "arg2"' -> ['file.scn', 'arg2']
+    """
     args = []
     rest = line.strip()
     while rest:
+        # Match: opening quote, content, closing quote, optional whitespace
         match = re.match(r'^"([^"]*)"[\s]*(.*)', rest)
         if match:
             arg = match.group(1)
             rest = match.group(2)
             args.append(arg)
         else:
+            # No more quoted arguments
             break
     return args
 
+
 def get_args(line):
-    """Get arguments from an option line."""
-    return re.sub(r'^[^\s]+[\s]+', '', line.strip())
+    """Get arguments from an option line.
+
+    Example: 'ignore "file.scn" "arg2"' -> '"file.scn" "arg2"'
+    """
+    return re.sub(r"^[^\s]+[\s]+", "", line.strip())
+
 
 def get_option(line):
-    """Get the option from an option line."""
-    return re.sub(r'[\s].*', '', line.strip())
+    """Get the option from an option line.
+
+    Example: 'ignore "file.scn"' -> 'ignore'
+    """
+    return re.sub(r"[\s].*", "", line.strip())
+
 
 def get_arg(args, index):
     """Get the nth argument from an option line."""
@@ -88,9 +115,11 @@ def get_arg(args, index):
         return split_args[index - 1]
     return None
 
+
 def count_args(args):
     """Count the number of arguments in an option line."""
     return len(option_split_args(args))
+
 
 def list_scenes(directory):
     """List all scenes in a directory."""
@@ -101,34 +130,41 @@ def list_scenes(directory):
     # Find .scn files
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith('.scn'):
+            if file.endswith(".scn"):
                 rel_path = os.path.relpath(os.path.join(root, file), directory)
                 scenes_scn.append(rel_path)
 
     # Filter out .scn files from .pyscn and .py searches
-    scenes_scn_grep = '|'.join(os.path.splitext(scene)[0] for scene in scenes_scn)
+    scenes_scn_grep = "|".join(os.path.splitext(scene)[0] for scene in scenes_scn)
 
     # Find .pyscn files
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith('.pyscn'):
+            if file.endswith(".pyscn"):
                 rel_path = os.path.relpath(os.path.join(root, file), directory)
                 # Match the bash behavior: filter out files whose basename matches a .scn file
-                if not any(os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0] for scn in scenes_scn):
+                if not any(
+                    os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0]
+                    for scn in scenes_scn
+                ):
                     scenes_pyscn.append(rel_path)
 
     # Find .py files
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith('.py'):
+            if file.endswith(".py"):
                 rel_path = os.path.relpath(os.path.join(root, file), directory)
                 # Match the bash behavior: filter out files whose basename matches a .scn file
-                if not any(os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0] for scn in scenes_scn):
+                if not any(
+                    os.path.splitext(rel_path)[0] == os.path.splitext(scn)[0]
+                    for scn in scenes_scn
+                ):
                     scenes_py.append(rel_path)
 
     # Combine and sort
     all_scenes = scenes_scn + scenes_pyscn + scenes_py
     return sorted(set(all_scenes))
+
 
 def get_lib(lib_name):
     """Get the path to a library."""
@@ -137,7 +173,16 @@ def get_lib(lib_name):
     # Search in build_dir/lib/
     lib_dir = os.path.join(build_dir, "lib")
     if os.path.exists(lib_dir):
-        for pattern in [f"lib{lib_name}.dylib", f"lib{lib_name}.so", f"lib{lib_name}.lib", f"lib{lib_name}.dll", f"{lib_name}.dylib", f"{lib_name}.so", f"{lib_name}.lib", f"{lib_name}.dll"]:
+        for pattern in [
+            f"lib{lib_name}.dylib",
+            f"lib{lib_name}.so",
+            f"lib{lib_name}.lib",
+            f"lib{lib_name}.dll",
+            f"{lib_name}.dylib",
+            f"{lib_name}.so",
+            f"{lib_name}.lib",
+            f"{lib_name}.dll",
+        ]:
             for file in glob.glob(os.path.join(lib_dir, pattern)):
                 paths.append(file)
 
@@ -145,11 +190,21 @@ def get_lib(lib_name):
     sofa_plugin_path = os.environ.get("SOFA_PLUGIN_PATH", "")
     for directory in sofa_plugin_path.replace(":", " ").replace(";", " ").split():
         if os.path.exists(directory):
-            for pattern in [f"lib{lib_name}.dylib", f"lib{lib_name}.so", f"lib{lib_name}.lib", f"lib{lib_name}.dll", f"{lib_name}.dylib", f"{lib_name}.so", f"{lib_name}.lib", f"{lib_name}.dll"]:
+            for pattern in [
+                f"lib{lib_name}.dylib",
+                f"lib{lib_name}.so",
+                f"lib{lib_name}.lib",
+                f"lib{lib_name}.dll",
+                f"{lib_name}.dylib",
+                f"{lib_name}.so",
+                f"{lib_name}.lib",
+                f"{lib_name}.dll",
+            ]:
                 for file in glob.glob(os.path.join(directory, pattern)):
                     paths.append(file)
 
-    return ' '.join(paths) if paths else None
+    return " ".join(paths) if paths else None
+
 
 def list_plugins():
     """List all plugins."""
@@ -170,6 +225,7 @@ def list_plugins():
                 plugins.append(plugin)
 
     return plugins
+
 
 def list_scene_directories():
     """List all scene directories."""
@@ -198,8 +254,12 @@ def list_scene_directories():
             for scene_dir in [
                 os.path.join(src_dir, "applications", "plugins", plugin, "examples"),
                 os.path.join(src_dir, "applications", "plugins", plugin, "scenes"),
-                os.path.join(build_dir, "external_directories", "fetched", plugin, "examples"),
-                os.path.join(build_dir, "external_directories", "fetched", plugin, "scenes")
+                os.path.join(
+                    build_dir, "external_directories", "fetched", plugin, "examples"
+                ),
+                os.path.join(
+                    build_dir, "external_directories", "fetched", plugin, "scenes"
+                ),
             ]:
                 if os.path.exists(scene_dir):
                     log(f"Plugin {plugin}: examples/ or scenes/ directory found.")
@@ -215,16 +275,18 @@ def list_scene_directories():
 
     return directories
 
+
 def get_output_relative_dir(path):
     """Get the relative directory for output."""
     # Check if the path is in the external_directories/fetched directory
-    fetched_path = os.path.join(build_dir, 'external_directories', 'fetched')
+    fetched_path = os.path.join(build_dir, "external_directories", "fetched")
     if path.startswith(fetched_path):
-        return f"applications/plugins/{path[len(fetched_path):].lstrip('/')}"
+        return f"applications/plugins/{path[len(fetched_path) :].lstrip('/')}"
     elif path.startswith(src_dir):
-        return path[len(src_dir):].lstrip('/')
+        return path[len(src_dir) :].lstrip("/")
     else:
-        return f"applications/plugins/{path[len(os.path.join(build_dir, 'external_directories', 'fetched')):].lstrip('/')}"
+        return f"applications/plugins/{path[len(os.path.join(build_dir, 'external_directories', 'fetched')) :].lstrip('/')}"
+
 
 def create_directories():
     """Create the directory structure for scene testing."""
@@ -271,6 +333,7 @@ def create_directories():
             with open(os.path.join(output_dir, "all-scenes.txt"), "a") as f:
                 f.write(os.path.abspath(os.path.join(path, scene)) + "\n")
 
+
 def parse_options_files():
     """Parse .scene-tests files for options."""
     directories = []
@@ -297,15 +360,25 @@ def parse_options_files():
                     if option == "ignore":
                         if count_args(args) == 1:
                             arg = get_arg(args, 1)
-                            with open(os.path.join(output_dir, subpath, "ignore-patterns.txt"), "a") as f:
+                            with open(
+                                os.path.join(
+                                    output_dir, subpath, "ignore-patterns.txt"
+                                ),
+                                "a",
+                            ) as f:
                                 f.write(arg + "\n")
                         else:
-                            log(f"{scene_tests_file}: warning: 'ignore' expects one argument: ignore <pattern>")
+                            log(
+                                f"{scene_tests_file}: warning: 'ignore' expects one argument: ignore <pattern>"
+                            )
 
                     elif option == "add":
                         if count_args(args) == 1:
                             scene = get_arg(args, 1)
-                            with open(os.path.join(output_dir, subpath, "add-patterns.txt"), "a") as f:
+                            with open(
+                                os.path.join(output_dir, subpath, "add-patterns.txt"),
+                                "a",
+                            ) as f:
                                 f.write(scene + "\n")
 
                             scene_dir = os.path.join(output_dir, subpath, scene)
@@ -324,7 +397,9 @@ def parse_options_files():
                             with open(iterations_file, "w") as f:
                                 f.write("100")  # Default number of iterations
                         else:
-                            log(f"{scene_tests_file}: warning: 'add' expects one argument: add <pattern>")
+                            log(
+                                f"{scene_tests_file}: warning: 'add' expects one argument: add <pattern>"
+                            )
 
                     elif option == "timeout":
                         if count_args(args) == 2:
@@ -334,12 +409,18 @@ def parse_options_files():
                                 timeout = get_arg(args, 2)
                                 scene_dir = os.path.join(output_dir, subpath, scene)
                                 os.makedirs(scene_dir, exist_ok=True)
-                                with open(os.path.join(scene_dir, "timeout.txt"), "w") as f:
+                                with open(
+                                    os.path.join(scene_dir, "timeout.txt"), "w"
+                                ) as f:
                                     f.write(timeout)
                             else:
-                                log(f"{scene_tests_file}: warning: no such file: {scene}")
+                                log(
+                                    f"{scene_tests_file}: warning: no such file: {scene}"
+                                )
                         else:
-                            log(f"{scene_tests_file}: warning: 'timeout' expects two arguments: timeout <file> <timeout>")
+                            log(
+                                f"{scene_tests_file}: warning: 'timeout' expects two arguments: timeout <file> <timeout>"
+                            )
 
                     elif option == "iterations":
                         if count_args(args) == 2:
@@ -349,12 +430,18 @@ def parse_options_files():
                                 iterations = get_arg(args, 2)
                                 scene_dir = os.path.join(output_dir, subpath, scene)
                                 os.makedirs(scene_dir, exist_ok=True)
-                                with open(os.path.join(scene_dir, "iterations.txt"), "w") as f:
+                                with open(
+                                    os.path.join(scene_dir, "iterations.txt"), "w"
+                                ) as f:
                                     f.write(iterations)
                             else:
-                                log(f"{scene_tests_file}: warning: no such file: {scene}")
+                                log(
+                                    f"{scene_tests_file}: warning: no such file: {scene}"
+                                )
                         else:
-                            log(f"{scene_tests_file}: warning: 'iterations' expects two arguments: iterations <file> <number>")
+                            log(
+                                f"{scene_tests_file}: warning: 'iterations' expects two arguments: iterations <file> <number>"
+                            )
 
                     else:
                         log(f"{scene_tests_file}: warning: unknown option: {option}")
@@ -379,7 +466,10 @@ def parse_options_files():
 
         # Filter ignored scenes
         with open(ignored_scenes_file, "w") as f:
-            if os.path.exists(ignore_patterns_file) and os.path.getsize(ignore_patterns_file) > 0:
+            if (
+                os.path.exists(ignore_patterns_file)
+                and os.path.getsize(ignore_patterns_file) > 0
+            ):
                 with open(ignore_patterns_file, "r") as ignore_f:
                     ignore_patterns = ignore_f.read().splitlines()
                 with open(scenes_file, "r") as scenes_f:
@@ -392,13 +482,18 @@ def parse_options_files():
 
         # Create tested-scenes.txt
         with open(tested_scenes_file, "w") as f:
-            if os.path.exists(ignore_patterns_file) and os.path.getsize(ignore_patterns_file) > 0:
+            if (
+                os.path.exists(ignore_patterns_file)
+                and os.path.getsize(ignore_patterns_file) > 0
+            ):
                 with open(ignore_patterns_file, "r") as ignore_f:
                     ignore_patterns = ignore_f.read().splitlines()
                 with open(scenes_file, "r") as scenes_f:
                     scenes = scenes_f.read().splitlines()
                 for scene in scenes:
-                    if not any(re.search(pattern, scene) for pattern in ignore_patterns):
+                    if not any(
+                        re.search(pattern, scene) for pattern in ignore_patterns
+                    ):
                         f.write(scene + "\n")
             else:
                 with open(scenes_file, "r") as scenes_f:
@@ -409,11 +504,11 @@ def parse_options_files():
             with open(add_patterns_file, "r") as add_f:
                 added_scenes = add_f.read().splitlines()
             with open(added_scenes_file, "w") as f:
-                f.write('\n'.join(added_scenes) + "\n")
+                f.write("\n".join(added_scenes) + "\n")
             with open(tested_scenes_file, "a") as f:
-                f.write('\n'.join(added_scenes) + "\n")
+                f.write("\n".join(added_scenes) + "\n")
             with open(scenes_file, "a") as f:
-                f.write('\n'.join(added_scenes) + "\n")
+                f.write("\n".join(added_scenes) + "\n")
 
         # Update all-ignored-scenes.txt and all-added-scenes.txt
         if os.path.exists(ignored_scenes_file):
@@ -435,20 +530,29 @@ def parse_options_files():
                         f.write(os.path.join(path, scene) + "\n")
 
     # Clean output files
-    for filename in ["all-ignored-scenes.txt", "all-added-scenes.txt", "all-tested-scenes.txt"]:
+    for filename in [
+        "all-ignored-scenes.txt",
+        "all-added-scenes.txt",
+        "all-tested-scenes.txt",
+    ]:
         if os.path.exists(os.path.join(output_dir, filename)):
             with open(os.path.join(output_dir, filename), "r") as f:
                 lines = f.read().splitlines()
-            lines = [line for line in lines if '.' in line]
+            lines = [line for line in lines if "." in line]
             lines = sorted(set(lines))
             with open(os.path.join(output_dir, filename), "w") as f:
-                f.write('\n'.join(lines) + "\n")
+                f.write("\n".join(lines) + "\n")
+
 
 def ignore_scenes_with_deprecated_components():
     """Ignore scenes with deprecated components."""
     log("Searching for deprecated components...")
     get_deprecated_components = None
-    for pattern in ["getDeprecatedComponents", "getDeprecatedComponentsd", "getDeprecatedComponents_d"]:
+    for pattern in [
+        "getDeprecatedComponents",
+        "getDeprecatedComponentsd",
+        "getDeprecatedComponents_d",
+    ]:
         for file in glob.glob(os.path.join(build_dir, "bin", pattern)):
             get_deprecated_components = file
             break
@@ -463,7 +567,7 @@ def ignore_scenes_with_deprecated_components():
     deprecated_components = result.stdout.splitlines()
 
     with open(os.path.join(output_dir, "deprecatedcomponents.txt"), "w") as f:
-        f.write('\n'.join(deprecated_components) + "\n")
+        f.write("\n".join(deprecated_components) + "\n")
 
     for component in deprecated_components:
         component = component.strip()
@@ -471,10 +575,10 @@ def ignore_scenes_with_deprecated_components():
             ["grep", "-r", component, "--include=*.{scn,py,pyscn}"],
             capture_output=True,
             text=True,
-            cwd=src_dir
+            cwd=src_dir,
         )
         scenes = grep_result.stdout.splitlines()
-        scenes = [line.split(':')[0] for line in scenes]
+        scenes = [line.split(":")[0] for line in scenes]
         scenes = sorted(set(scenes))
 
         for scene in scenes:
@@ -483,39 +587,55 @@ def ignore_scenes_with_deprecated_components():
                     tested_scenes = f.read().splitlines()
                 if scene in tested_scenes:
                     tested_scenes = [s for s in tested_scenes if s != scene]
-                    with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
-                        f.write('\n'.join(tested_scenes) + "\n")
+                    with open(
+                        os.path.join(output_dir, "all-tested-scenes.txt"), "w"
+                    ) as f:
+                        f.write("\n".join(tested_scenes) + "\n")
 
-                    if not os.path.exists(os.path.join(output_dir, "all-ignored-scenes.txt")) or scene not in open(os.path.join(output_dir, "all-ignored-scenes.txt")).read():
-                        log(f"  ignore {scene}: deprecated component \"{component}\"")
-                        with open(os.path.join(output_dir, "all-ignored-scenes.txt"), "a") as f:
+                    if (
+                        not os.path.exists(
+                            os.path.join(output_dir, "all-ignored-scenes.txt")
+                        )
+                        or scene
+                        not in open(
+                            os.path.join(output_dir, "all-ignored-scenes.txt")
+                        ).read()
+                    ):
+                        log(f'  ignore {scene}: deprecated component "{component}"')
+                        with open(
+                            os.path.join(output_dir, "all-ignored-scenes.txt"), "a"
+                        ) as f:
                             f.write(scene + "\n")
 
     log("Searching for deprecated components: done.")
+
 
 def ignore_scenes_with_missing_plugins():
     """Ignore scenes with missing plugins."""
     log("Searching for missing plugins...")
 
-    log(f"DEBUG: all-tested-scenes.txt exists: {os.path.exists(os.path.join(output_dir, 'all-tested-scenes.txt'))}")
+    log(
+        f"DEBUG: all-tested-scenes.txt exists: {os.path.exists(os.path.join(output_dir, 'all-tested-scenes.txt'))}"
+    )
     if not os.path.exists(os.path.join(output_dir, "all-tested-scenes.txt")):
         log("all-tested-scenes.txt not found.")
         return
 
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "r") as f:
         tested_scenes = f.read().splitlines()
-    log(f"DEBUG: all-tested-scenes.txt has {len(tested_scenes)} scenes before processing missing plugins")
-
+    log(
+        f"DEBUG: all-tested-scenes.txt has {len(tested_scenes)} scenes before processing missing plugins"
+    )
 
     scenes_to_remove = []
     for scene in tested_scenes:
         if not os.path.exists(scene):
             continue
-            
+
         try:
             with open(scene, "r") as f:
                 content = f.read()
-                if 'RequiredPlugin' not in content:
+                if "RequiredPlugin" not in content:
                     continue
         except Exception as e:
             log(f"  Warning: could not read {scene}: {e}")
@@ -525,35 +645,51 @@ def ignore_scenes_with_missing_plugins():
             lines = f.readlines()
 
         for line in lines:
-            if 'RequiredPlugin' in line:
+            if "RequiredPlugin" in line:
                 # Skip lines that contain "RequiredPlugins" as a node name
-                if 'RequiredPlugins' in line and 'Node' in line:
+                if "RequiredPlugins" in line and "Node" in line:
                     continue
-                
+
                 plugin_match = None
-                if 'pluginName' in line:
-                    plugin_match = re.search(r'pluginName[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line)
-                elif 'name' in line:
-                    plugin_match = re.search(r'name[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line)
-                
+                if "pluginName" in line:
+                    plugin_match = re.search(
+                        r'pluginName[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line
+                    )
+                elif "name" in line:
+                    plugin_match = re.search(
+                        r'name[\s]*=[\s]*[\'"]([^\'"]*)[\'"]', line
+                    )
+
                 if plugin_match:
                     plugins = plugin_match.group(1).split()
                     for plugin in plugins:
                         lib = get_lib(plugin)
                         if not lib:
                             scenes_to_remove.append(scene)
-                            if not os.path.exists(os.path.join(output_dir, "all-ignored-scenes.txt")) or scene not in open(os.path.join(output_dir, "all-ignored-scenes.txt")).read():
-                                log(f"  ignore {scene}: missing plugin \"{plugin}\"")
-                                with open(os.path.join(output_dir, "all-ignored-scenes.txt"), "a") as f:
+                            if (
+                                not os.path.exists(
+                                    os.path.join(output_dir, "all-ignored-scenes.txt")
+                                )
+                                or scene
+                                not in open(
+                                    os.path.join(output_dir, "all-ignored-scenes.txt")
+                                ).read()
+                            ):
+                                log(f'  ignore {scene}: missing plugin "{plugin}"')
+                                with open(
+                                    os.path.join(output_dir, "all-ignored-scenes.txt"),
+                                    "a",
+                                ) as f:
                                     f.write(scene + "\n")
                             break
 
     # Remove scenes with missing plugins from tested_scenes
     tested_scenes = [scene for scene in tested_scenes if scene not in scenes_to_remove]
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
-        f.write('\n'.join(tested_scenes) + "\n")
+        f.write("\n".join(tested_scenes) + "\n")
 
     log("Searching for missing plugins: done.")
+
 
 def ignore_scenes_python_without_createscene():
     """Ignore Python scenes without createScene function."""
@@ -567,29 +703,42 @@ def ignore_scenes_python_without_createscene():
         tested_scenes = f.read().splitlines()
 
     for scene in tested_scenes:
-        if scene.endswith('.py'):
+        if scene.endswith(".py"):
             if not os.path.exists(scene):
                 continue
-                
+
             try:
                 with open(scene, "r") as f:
                     content = f.read()
-                    if 'def createScene' not in content:
+                    if "def createScene" not in content:
                         tested_scenes = [s for s in tested_scenes if s != scene]
-                        with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
-                            f.write('\n'.join(tested_scenes) + "\n")
+                        with open(
+                            os.path.join(output_dir, "all-tested-scenes.txt"), "w"
+                        ) as f:
+                            f.write("\n".join(tested_scenes) + "\n")
 
-                        if not os.path.exists(os.path.join(output_dir, "all-ignored-scenes.txt")) or scene not in open(os.path.join(output_dir, "all-ignored-scenes.txt")).read():
+                        if (
+                            not os.path.exists(
+                                os.path.join(output_dir, "all-ignored-scenes.txt")
+                            )
+                            or scene
+                            not in open(
+                                os.path.join(output_dir, "all-ignored-scenes.txt")
+                            ).read()
+                        ):
                             log(f"  ignore {scene}: createScene function not found.")
-                            with open(os.path.join(output_dir, "all-ignored-scenes.txt"), "a") as f:
+                            with open(
+                                os.path.join(output_dir, "all-ignored-scenes.txt"), "a"
+                            ) as f:
                                 f.write(scene + "\n")
             except Exception as e:
                 log(f"  Warning: could not read {scene}: {e}")
 
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "w") as f:
-        f.write('\n'.join(tested_scenes) + "\n")
+        f.write("\n".join(tested_scenes) + "\n")
 
     log("Searching for unwanted python scripts: done.")
+
 
 def initialize_scene_tests():
     """Initialize scene testing."""
@@ -621,6 +770,7 @@ def initialize_scene_tests():
     create_directories()
     parse_options_files()
 
+
 def do_test_all_scenes(tested_scenes, thread_num):
     """Test all scenes in a thread."""
     tested_scenes_count = len(tested_scenes)
@@ -650,17 +800,21 @@ def do_test_all_scenes(tested_scenes, thread_num):
         with open(os.path.join(output_dir, subpath, "command.txt"), "w") as f:
             f.write(run_sofa_cmd)
 
-        log(f"- {scene} (thread {thread_num}/{MAX_PARALLEL_TESTS} ; scene {current_scene_count}/{tested_scenes_count})")
+        log(
+            f"- {scene} (thread {thread_num}/{MAX_PARALLEL_TESTS} ; scene {current_scene_count}/{tested_scenes_count})"
+        )
 
         with open(os.path.join(output_dir, subpath, "output.txt"), "w") as f:
             f.write("\n------------------------------------------\n\n")
             f.write(f"Running scene-test {scene}\n")
-            f.write(f"Calling: {SCRIPT_DIR}/timeout.sh {os.path.join(output_dir, subpath, 'runSofa')} '{run_sofa_cmd}' {timeout}\n\n")
+            f.write(
+                f"Calling: {SCRIPT_DIR}/timeout.sh {os.path.join(output_dir, subpath, 'runSofa')} '{run_sofa_cmd}' {timeout}\n\n"
+            )
 
         begin_millisec = int(time.time() * 1000)
         timeout_script = os.path.join(SCRIPT_DIR, "timeout.sh")
         timeout_id = os.path.join(output_dir, subpath, "runSofa")
-        
+
         # Redirect stdout and stderr to output.txt
         output_file = os.path.join(output_dir, subpath, "output.txt")
         with open(output_file, "a") as f:
@@ -668,7 +822,7 @@ def do_test_all_scenes(tested_scenes, thread_num):
                 [timeout_script, timeout_id, run_sofa_cmd, str(timeout)],
                 stdout=f,
                 stderr=f,
-                text=True
+                text=True,
             )
         end_millisec = int(time.time() * 1000)
 
@@ -682,7 +836,10 @@ def do_test_all_scenes(tested_scenes, thread_num):
             with open(os.path.join(output_dir, subpath, "output.txt"), "a") as f:
                 f.write("\n\nINFO: Abort caused by timeout.\n")
             os.remove(f"{timeout_id}.timeout")
-            shutil.copy(os.path.join(output_dir, subpath, "timeout.txt"), os.path.join(output_dir, subpath, "duration.txt"))
+            shutil.copy(
+                os.path.join(output_dir, subpath, "timeout.txt"),
+                os.path.join(output_dir, subpath, "duration.txt"),
+            )
         else:
             exit_code_file = f"{timeout_id}.exit_code"
             if os.path.exists(exit_code_file):
@@ -695,7 +852,7 @@ def do_test_all_scenes(tested_scenes, thread_num):
                 log(f"Warning: No exit code file found for {scene}")
                 with open(os.path.join(output_dir, subpath, "status.txt"), "w") as f:
                     f.write("1")
-            
+
             elapsed_sec_real = None
             if os.path.exists(os.path.join(output_dir, subpath, "output.txt")):
                 with open(os.path.join(output_dir, subpath, "output.txt"), "r") as f:
@@ -703,7 +860,7 @@ def do_test_all_scenes(tested_scenes, thread_num):
                     match = re.search(r"iterations done in ([0-9.]*?) s", output)
                     if match:
                         elapsed_sec_real = match.group(1)
-            
+
             if elapsed_sec_real:
                 with open(os.path.join(output_dir, subpath, "duration.txt"), "w") as f:
                     f.write(elapsed_sec_real)
@@ -711,16 +868,27 @@ def do_test_all_scenes(tested_scenes, thread_num):
                 with open(os.path.join(output_dir, subpath, "duration.txt"), "w") as f:
                     f.write(elapsed_sec)
 
+
 def test_all_scenes():
     """Test all scenes."""
     log("Scene testing in progress...")
 
-    log(f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes before shuf")
+    log(
+        f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes before shuf"
+    )
     # Shuffle the scenes if shuf is available
     if shutil.which("shuf"):
-        subprocess.run(["shuf", os.path.join(output_dir, "all-tested-scenes.txt")], stdout=open(os.path.join(output_dir, "all-tested-scenes.txt.shuf"), "w"))
-        shutil.move(os.path.join(output_dir, "all-tested-scenes.txt.shuf"), os.path.join(output_dir, "all-tested-scenes.txt"))
-    log(f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes after shuf")
+        subprocess.run(
+            ["shuf", os.path.join(output_dir, "all-tested-scenes.txt")],
+            stdout=open(os.path.join(output_dir, "all-tested-scenes.txt.shuf"), "w"),
+        )
+        shutil.move(
+            os.path.join(output_dir, "all-tested-scenes.txt.shuf"),
+            os.path.join(output_dir, "all-tested-scenes.txt"),
+        )
+    log(
+        f"DEBUG: all-tested-scenes.txt has {len(open(os.path.join(output_dir, 'all-tested-scenes.txt')).readlines())} scenes after shuf"
+    )
 
     if not os.path.exists(os.path.join(output_dir, "all-tested-scenes.txt")):
         log("all-tested-scenes.txt not found.")
@@ -729,13 +897,21 @@ def test_all_scenes():
     with open(os.path.join(output_dir, "all-tested-scenes.txt"), "r") as f:
         tested_scenes = f.read().splitlines()
     log(f"DEBUG: all-tested-scenes.txt has {len(tested_scenes)} scenes after reading")
-    
+
     if not tested_scenes:
         log("all-tested-scenes.txt is empty. No scenes to test.")
         return
 
     lines_per_thread = (len(tested_scenes) // MAX_PARALLEL_TESTS) + 1
-    subprocess.run(["split", "-l", str(lines_per_thread), os.path.join(output_dir, "all-tested-scenes.txt"), os.path.join(output_dir, "all-tested-scenes_part-")])
+    subprocess.run(
+        [
+            "split",
+            "-l",
+            str(lines_per_thread),
+            os.path.join(output_dir, "all-tested-scenes.txt"),
+            os.path.join(output_dir, "all-tested-scenes_part-"),
+        ]
+    )
 
     threads = []
     thread_num = 0
@@ -744,7 +920,9 @@ def test_all_scenes():
         if os.path.exists(file):
             with open(file, "r") as f:
                 part_scenes = f.read().splitlines()
-            thread = threading.Thread(target=do_test_all_scenes, args=(part_scenes, thread_num))
+            thread = threading.Thread(
+                target=do_test_all_scenes, args=(part_scenes, thread_num)
+            )
             thread.start()
             threads.append(thread)
 
@@ -752,6 +930,7 @@ def test_all_scenes():
         thread.join()
 
     log("Done.")
+
 
 def extract_warnings():
     """Extract warnings from the output."""
@@ -775,24 +954,34 @@ def extract_warnings():
                 warnings = re.findall(r"^\[WARNING\] [^\]]*", output, re.MULTILINE)
                 if warnings:
                     scene_path = os.path.dirname(subpath)
-                    archive_dir = os.path.join(output_dir, "archive", "warnings", scene_path)
+                    archive_dir = os.path.join(
+                        output_dir, "archive", "warnings", scene_path
+                    )
                     os.makedirs(archive_dir, exist_ok=True)
                     if os.path.exists(os.path.join(output_dir, subpath)):
-                        shutil.copytree(os.path.join(output_dir, subpath), os.path.join(archive_dir, os.path.basename(subpath)), dirs_exist_ok=True)
+                        shutil.copytree(
+                            os.path.join(output_dir, subpath),
+                            os.path.join(archive_dir, os.path.basename(subpath)),
+                            dirs_exist_ok=True,
+                        )
 
                     warnings_file = os.path.join(output_dir, subpath, "warnings.txt")
                     with open(warnings_file, "w") as f:
-                        f.write('\n'.join(warnings) + "\n")
+                        f.write("\n".join(warnings) + "\n")
                     warnings_tmp.append(f"{scene}: {' '.join(warnings)}")
 
     with open(os.path.join(output_dir, "reports", "warnings.tmp"), "w") as f:
-        f.write('\n'.join(warnings_tmp) + "\n")
+        f.write("\n".join(warnings_tmp) + "\n")
 
     if os.path.exists(os.path.join(output_dir, "reports", "warnings.tmp")):
-        subprocess.run(["sort", os.path.join(output_dir, "reports", "warnings.tmp")], stdout=open(os.path.join(output_dir, "reports", "warnings.txt"), "w"))
+        subprocess.run(
+            ["sort", os.path.join(output_dir, "reports", "warnings.tmp")],
+            stdout=open(os.path.join(output_dir, "reports", "warnings.txt"), "w"),
+        )
         os.remove(os.path.join(output_dir, "reports", "warnings.tmp"))
-    
+
     log("Done.")
+
 
 def extract_errors():
     """Extract errors from the output."""
@@ -816,24 +1005,34 @@ def extract_errors():
                 errors = re.findall(r"^\[ERROR\] [^\]]*", output, re.MULTILINE)
                 if errors:
                     scene_path = os.path.dirname(subpath)
-                    archive_dir = os.path.join(output_dir, "archive", "errors", scene_path)
+                    archive_dir = os.path.join(
+                        output_dir, "archive", "errors", scene_path
+                    )
                     os.makedirs(archive_dir, exist_ok=True)
                     if os.path.exists(os.path.join(output_dir, subpath)):
-                        shutil.copytree(os.path.join(output_dir, subpath), os.path.join(archive_dir, os.path.basename(subpath)), dirs_exist_ok=True)
+                        shutil.copytree(
+                            os.path.join(output_dir, subpath),
+                            os.path.join(archive_dir, os.path.basename(subpath)),
+                            dirs_exist_ok=True,
+                        )
 
                     errors_file = os.path.join(output_dir, subpath, "errors.txt")
                     with open(errors_file, "w") as f:
-                        f.write('\n'.join(errors) + "\n")
+                        f.write("\n".join(errors) + "\n")
                     errors_tmp.append(f"{scene}: {' '.join(errors)}")
 
     with open(os.path.join(output_dir, "reports", "errors.tmp"), "w") as f:
-        f.write('\n'.join(errors_tmp) + "\n")
+        f.write("\n".join(errors_tmp) + "\n")
 
     if os.path.exists(os.path.join(output_dir, "reports", "errors.tmp")):
-        subprocess.run(["sort", os.path.join(output_dir, "reports", "errors.tmp")], stdout=open(os.path.join(output_dir, "reports", "errors.txt"), "w"))
+        subprocess.run(
+            ["sort", os.path.join(output_dir, "reports", "errors.tmp")],
+            stdout=open(os.path.join(output_dir, "reports", "errors.txt"), "w"),
+        )
         os.remove(os.path.join(output_dir, "reports", "errors.tmp"))
-    
+
     log("Done.")
+
 
 def extract_crashes():
     """Extract crashes from the output."""
@@ -860,15 +1059,22 @@ def extract_crashes():
                 if status != "0":
                     crashes.append(f"{scene}: error: {status}")
                     scene_path = os.path.dirname(subpath)
-                    archive_dir = os.path.join(output_dir, "archive", "crashes", scene_path)
+                    archive_dir = os.path.join(
+                        output_dir, "archive", "crashes", scene_path
+                    )
                     os.makedirs(archive_dir, exist_ok=True)
                     if os.path.exists(os.path.join(output_dir, subpath)):
-                        shutil.copytree(os.path.join(output_dir, subpath), os.path.join(archive_dir, os.path.basename(subpath)), dirs_exist_ok=True)
+                        shutil.copytree(
+                            os.path.join(output_dir, subpath),
+                            os.path.join(archive_dir, os.path.basename(subpath)),
+                            dirs_exist_ok=True,
+                        )
 
     with open(os.path.join(output_dir, "reports", "crashes.txt"), "w") as f:
-        f.write('\n'.join(crashes) + "\n")
-    
+        f.write("\n".join(crashes) + "\n")
+
     log("Done.")
+
 
 def extract_successes():
     """Extract successes from the output."""
@@ -898,13 +1104,17 @@ def extract_successes():
                                 successes.append(scene)
 
     with open(os.path.join(output_dir, "reports", "successes.tmp"), "w") as f:
-        f.write('\n'.join(successes) + "\n")
+        f.write("\n".join(successes) + "\n")
 
     if os.path.exists(os.path.join(output_dir, "reports", "successes.tmp")):
-        subprocess.run(["sort", os.path.join(output_dir, "reports", "successes.tmp")], stdout=open(os.path.join(output_dir, "reports", "successes.txt"), "w"))
+        subprocess.run(
+            ["sort", os.path.join(output_dir, "reports", "successes.tmp")],
+            stdout=open(os.path.join(output_dir, "reports", "successes.txt"), "w"),
+        )
         os.remove(os.path.join(output_dir, "reports", "successes.tmp"))
-    
+
     log("Done.")
+
 
 def count_tested_scenes():
     """Count the number of tested scenes."""
@@ -912,6 +1122,7 @@ def count_tested_scenes():
         with open(os.path.join(output_dir, "all-tested-scenes.txt"), "r") as f:
             return len(f.readlines())
     return 0
+
 
 def count_durations():
     """Count the total duration of all tested scenes."""
@@ -935,12 +1146,14 @@ def count_durations():
 
     return total
 
+
 def count_successes():
     """Count the number of successes."""
     if os.path.exists(os.path.join(output_dir, "reports", "successes.txt")):
         with open(os.path.join(output_dir, "reports", "successes.txt"), "r") as f:
             return len(f.readlines())
     return 0
+
 
 def count_warnings():
     """Count the number of warnings."""
@@ -949,6 +1162,7 @@ def count_warnings():
             return len(f.readlines())
     return 0
 
+
 def count_errors():
     """Count the number of errors."""
     if os.path.exists(os.path.join(output_dir, "reports", "errors.txt")):
@@ -956,12 +1170,14 @@ def count_errors():
             return len(f.readlines())
     return 0
 
+
 def count_crashes():
     """Count the number of crashes."""
     if os.path.exists(os.path.join(output_dir, "reports", "crashes.txt")):
         with open(os.path.join(output_dir, "reports", "crashes.txt"), "r") as f:
             return len(f.readlines())
     return 0
+
 
 def clamp_warnings(clamp_limit):
     """Clamp the number of warnings."""
@@ -971,7 +1187,9 @@ def clamp_warnings(clamp_limit):
         warnings_lines = count_warnings()
         if warnings_lines > clamp_limit:
             log("-------------------------------------------------------------")
-            log(f"ALERT: TOO MANY SCENE-TEST WARNINGS ({warnings_lines} > {clamp_limit}), CLAMPING TO {clamp_limit}")
+            log(
+                f"ALERT: TOO MANY SCENE-TEST WARNINGS ({warnings_lines} > {clamp_limit}), CLAMPING TO {clamp_limit}"
+            )
             log("-------------------------------------------------------------")
             with open(warnings_file, "r") as f:
                 warnings = f.readlines()
@@ -979,9 +1197,14 @@ def clamp_warnings(clamp_limit):
                 f.writelines(warnings[:clamp_limit])
 
             with open(os.path.join(output_dir, "reports", "errors.txt"), "a") as f:
-                f.write(f"{warnings_file}: [ERROR]   [JENKINS] TOO MANY SCENE-TEST WARNINGS (> {clamp_limit}), CLAMPING FILE TO {clamp_limit}\n")
+                f.write(
+                    f"{warnings_file}: [ERROR]   [JENKINS] TOO MANY SCENE-TEST WARNINGS (> {clamp_limit}), CLAMPING FILE TO {clamp_limit}\n"
+                )
         else:
-            log(f"INFO: warnings clamping not needed ({warnings_lines} < {clamp_limit})")
+            log(
+                f"INFO: warnings clamping not needed ({warnings_lines} < {clamp_limit})"
+            )
+
 
 def clamp_errors(clamp_limit):
     """Clamp the number of errors."""
@@ -991,7 +1214,9 @@ def clamp_errors(clamp_limit):
         error_lines = count_errors()
         if error_lines > clamp_limit:
             log("-------------------------------------------------------------")
-            log(f"ALERT: TOO MANY SCENE-TEST ERRORS ({error_lines} > {clamp_limit}), CLAMPING TO {clamp_limit}")
+            log(
+                f"ALERT: TOO MANY SCENE-TEST ERRORS ({error_lines} > {clamp_limit}), CLAMPING TO {clamp_limit}"
+            )
             log("-------------------------------------------------------------")
             with open(errors_file, "r") as f:
                 errors = f.readlines()
@@ -999,9 +1224,12 @@ def clamp_errors(clamp_limit):
                 f.writelines(errors[:clamp_limit])
 
             with open(errors_file, "a") as f:
-                f.write(f"{errors_file}: [ERROR]   [JENKINS] TOO MANY SCENE-TEST ERRORS (> {clamp_limit}), CLAMPING FILE TO {clamp_limit}\n")
+                f.write(
+                    f"{errors_file}: [ERROR]   [JENKINS] TOO MANY SCENE-TEST ERRORS (> {clamp_limit}), CLAMPING FILE TO {clamp_limit}\n"
+                )
         else:
             log(f"INFO: errors clamping not needed ({error_lines} < {clamp_limit})")
+
 
 def print_summary():
     """Print a summary of the scene testing."""
@@ -1033,10 +1261,19 @@ def print_summary():
                         if status == "timeout":
                             log(f"  - Timeout: {scene}")
                         elif status.isdigit():
-                            if int(status) > 128 and (os.uname().sysname == "Darwin" or os.uname().sysname == "Linux"):
+                            if int(status) > 128 and (
+                                os.uname().sysname == "Darwin"
+                                or os.uname().sysname == "Linux"
+                            ):
                                 try:
-                                    signal_name = subprocess.run(['kill', '-l', status], capture_output=True, text=True).stdout.strip()
-                                    log(f"  - Exit with status {status} ({signal_name}): {scene}")
+                                    signal_name = subprocess.run(
+                                        ["kill", "-l", status],
+                                        capture_output=True,
+                                        text=True,
+                                    ).stdout.strip()
+                                    log(
+                                        f"  - Exit with status {status} ({signal_name}): {scene}"
+                                    )
                                 except:
                                     log(f"  - Exit with status {status}: {scene}")
                             elif status != "0":
@@ -1044,10 +1281,13 @@ def print_summary():
                         elif status != "0":
                             log(f"Error: unexpected value in {status_file}: {status}")
 
+
 def export_to_junit_xml():
     """Export results as JUnit XML."""
     log("Exporting as JUnit XML...")
-    xml_file_errors_crashes = os.path.join(output_dir, "reports", "junit_errors_crashes.xml")
+    xml_file_errors_crashes = os.path.join(
+        output_dir, "reports", "junit_errors_crashes.xml"
+    )
     xml_file_successes = os.path.join(output_dir, "reports", "junit_successes.xml")
 
     # Gather results for errors and crashes
@@ -1056,14 +1296,14 @@ def export_to_junit_xml():
         with open(os.path.join(output_dir, "reports", "errors.txt"), "r") as f:
             errors = f.read().splitlines()
         for line in errors:
-            scene = line.split(':')[0]
+            scene = line.split(":")[0]
             errors_crashes.append(scene)
 
     if os.path.exists(os.path.join(output_dir, "reports", "crashes.txt")):
         with open(os.path.join(output_dir, "reports", "crashes.txt"), "r") as f:
             crashes = f.read().splitlines()
         for line in crashes:
-            scene = line.split(':')[0]
+            scene = line.split(":")[0]
             errors_crashes.append(scene)
 
     errors_crashes = sorted(set(errors_crashes))
@@ -1076,46 +1316,80 @@ def export_to_junit_xml():
             scene_name_noext = os.path.splitext(scene_name)[0]
             elapsed_sec = "0"
             if os.path.exists(os.path.join(output_dir, subpath, "duration.txt")):
-                with open(os.path.join(output_dir, subpath, "duration.txt"), "r") as duration_f:
+                with open(
+                    os.path.join(output_dir, subpath, "duration.txt"), "r"
+                ) as duration_f:
                     elapsed_sec = duration_f.read().strip()
 
-            f.write(f'\n        <testcase name="{scene_name}" type_param="" status="run" time="{elapsed_sec}" classname="SceneTests.{scene_path}">\n')
+            f.write(
+                f'\n        <testcase name="{scene_name}" type_param="" status="run" time="{elapsed_sec}" classname="SceneTests.{scene_path}">\n'
+            )
 
             # Add crashes
             if os.path.exists(os.path.join(output_dir, "reports", "crashes.txt")):
-                with open(os.path.join(output_dir, "reports", "crashes.txt"), "r") as crashes_f:
+                with open(
+                    os.path.join(output_dir, "reports", "crashes.txt"), "r"
+                ) as crashes_f:
                     for crash_line in crashes_f.read().splitlines():
                         if scene in crash_line:
-                            parts = crash_line.split(':', 1)
-                            crash_msg = parts[1].strip() if len(parts) > 1 else crash_line.strip()
-                            crash_msg_short = crash_msg.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-                            output_file = os.path.join(output_dir, subpath, "output.txt")
+                            parts = crash_line.split(":", 1)
+                            crash_msg = (
+                                parts[1].strip()
+                                if len(parts) > 1
+                                else crash_line.strip()
+                            )
+                            crash_msg_short = (
+                                crash_msg.replace("&", "&amp;")
+                                .replace("<", "&lt;")
+                                .replace(">", "&gt;")
+                                .replace('"', "&quot;")
+                            )
+                            output_file = os.path.join(
+                                output_dir, subpath, "output.txt"
+                            )
                             output_content = ""
                             if os.path.exists(output_file):
                                 with open(output_file, "r") as output_f:
                                     output_content = output_f.read()
                             else:
-                                output_content = f"export-to-junit-xml: error while running \"cat {output_file}\". See logs for details."
-                            f.write(f'\n            <error message="{crash_msg_short}">\n<![CDATA[{output_content}]]>\n            </error>\n')
+                                output_content = f'export-to-junit-xml: error while running "cat {output_file}". See logs for details.'
+                            f.write(
+                                f'\n            <error message="{crash_msg_short}">\n<![CDATA[{output_content}]]>\n            </error>\n'
+                            )
 
             # Add errors
             if os.path.exists(os.path.join(output_dir, "reports", "errors.txt")):
-                with open(os.path.join(output_dir, "reports", "errors.txt"), "r") as errors_f:
+                with open(
+                    os.path.join(output_dir, "reports", "errors.txt"), "r"
+                ) as errors_f:
                     for error_line in errors_f.read().splitlines():
                         if scene in error_line:
-                            parts = error_line.split(':', 1)
-                            error_msg = parts[1].strip() if len(parts) > 1 else error_line.strip()
-                            error_msg_short = error_msg.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-                            output_file = os.path.join(output_dir, subpath, "output.txt")
+                            parts = error_line.split(":", 1)
+                            error_msg = (
+                                parts[1].strip()
+                                if len(parts) > 1
+                                else error_line.strip()
+                            )
+                            error_msg_short = (
+                                error_msg.replace("&", "&amp;")
+                                .replace("<", "&lt;")
+                                .replace(">", "&gt;")
+                                .replace('"', "&quot;")
+                            )
+                            output_file = os.path.join(
+                                output_dir, subpath, "output.txt"
+                            )
                             output_content = ""
                             if os.path.exists(output_file):
                                 with open(output_file, "r") as output_f:
                                     output_content = output_f.read()
                             else:
-                                output_content = f"export-to-junit-xml: error while running \"cat {output_file}\". See logs for details."
-                            f.write(f'\n            <failure message="{error_msg_short}">\n<![CDATA[{output_content}]]>\n            </failure>\n')
+                                output_content = f'export-to-junit-xml: error while running "cat {output_file}". See logs for details.'
+                            f.write(
+                                f'\n            <failure message="{error_msg_short}">\n<![CDATA[{output_content}]]>\n            </failure>\n'
+                            )
 
-            f.write('\n        </testcase>\n')
+            f.write("\n        </testcase>\n")
 
     # Write XML report for errors and crashes
     count_errors_crashes_tests = 0
@@ -1124,18 +1398,20 @@ def export_to_junit_xml():
     if os.path.exists(xml_file_errors_crashes + ".tmp"):
         with open(xml_file_errors_crashes + ".tmp", "r") as f:
             content = f.read()
-            count_errors_crashes_tests = len(re.findall('<testcase ', content))
-            count_errors_crashes_errors = len(re.findall('<error ', content))
-            count_errors_crashes_failures = len(re.findall('<failure ', content))
+            count_errors_crashes_tests = len(re.findall("<testcase ", content))
+            count_errors_crashes_errors = len(re.findall("<error ", content))
+            count_errors_crashes_failures = len(re.findall("<failure ", content))
 
     with open(xml_file_errors_crashes, "w") as f:
-        f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="Scene Tests" tests="{count_errors_crashes_tests}" errors="{count_errors_crashes_errors}" failures="{count_errors_crashes_failures}" disabled="0">\n    <testsuite name="All Scenes" tests="{count_errors_crashes_tests}" errors="{count_errors_crashes_errors}" failures="{count_errors_crashes_failures}" disabled="0">\n')
+        f.write(
+            f'<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="Scene Tests" tests="{count_errors_crashes_tests}" errors="{count_errors_crashes_errors}" failures="{count_errors_crashes_failures}" disabled="0">\n    <testsuite name="All Scenes" tests="{count_errors_crashes_tests}" errors="{count_errors_crashes_errors}" failures="{count_errors_crashes_failures}" disabled="0">\n'
+        )
         if os.path.exists(xml_file_errors_crashes + ".tmp"):
             with open(xml_file_errors_crashes + ".tmp", "r") as tmp_f:
                 content = tmp_f.read()
-                content = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', content)
+                content = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", content)
                 f.write(content)
-        f.write('\n    </testsuite>\n</testsuites>\n')
+        f.write("\n    </testsuite>\n</testsuites>\n")
 
     # Gather results for successes
     successes = []
@@ -1151,10 +1427,14 @@ def export_to_junit_xml():
             scene_name_noext = os.path.splitext(scene_name)[0]
             elapsed_sec = "0"
             if os.path.exists(os.path.join(output_dir, subpath, "duration.txt")):
-                with open(os.path.join(output_dir, subpath, "duration.txt"), "r") as duration_f:
+                with open(
+                    os.path.join(output_dir, subpath, "duration.txt"), "r"
+                ) as duration_f:
                     elapsed_sec = duration_f.read().strip()
 
-            f.write(f'\n        <testcase name="{scene_name}" type_param="" status="run" time="{elapsed_sec}" classname="SceneTests.{scene_path}">\n')
+            f.write(
+                f'\n        <testcase name="{scene_name}" type_param="" status="run" time="{elapsed_sec}" classname="SceneTests.{scene_path}">\n'
+            )
 
             output_file = os.path.join(output_dir, subpath, "output.txt")
             output_content = ""
@@ -1162,10 +1442,12 @@ def export_to_junit_xml():
                 with open(output_file, "r") as output_f:
                     output_content = output_f.read()
             else:
-                output_content = f"export-to-junit-xml: error while running \"cat {output_file}\". See logs for details."
-            f.write(f'\n        <system-out>\n<![CDATA[{output_content}]]>\n        </system-out>\n')
+                output_content = f'export-to-junit-xml: error while running "cat {output_file}". See logs for details.'
+            f.write(
+                f"\n        <system-out>\n<![CDATA[{output_content}]]>\n        </system-out>\n"
+            )
 
-            f.write('\n        </testcase>\n')
+            f.write("\n        </testcase>\n")
 
     # Write XML report for successes
     count_successes_tests = 0
@@ -1174,25 +1456,28 @@ def export_to_junit_xml():
     if os.path.exists(xml_file_successes + ".tmp"):
         with open(xml_file_successes + ".tmp", "r") as f:
             content = f.read()
-            count_successes_tests = len(re.findall('<testcase ', content))
-            count_successes_errors = len(re.findall('<error ', content))
-            count_successes_failures = len(re.findall('<failure ', content))
+            count_successes_tests = len(re.findall("<testcase ", content))
+            count_successes_errors = len(re.findall("<error ", content))
+            count_successes_failures = len(re.findall("<failure ", content))
 
     with open(xml_file_successes, "w") as f:
-        f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="Scene Tests" tests="{count_successes_tests}" errors="{count_successes_errors}" failures="{count_successes_failures}" disabled="0">\n    <testsuite name="All Scenes" tests="{count_successes_tests}" errors="{count_successes_errors}" failures="{count_successes_failures}" disabled="0">\n')
+        f.write(
+            f'<?xml version="1.0" encoding="UTF-8"?>\n<testsuites name="Scene Tests" tests="{count_successes_tests}" errors="{count_successes_errors}" failures="{count_successes_failures}" disabled="0">\n    <testsuite name="All Scenes" tests="{count_successes_tests}" errors="{count_successes_errors}" failures="{count_successes_failures}" disabled="0">\n'
+        )
         if os.path.exists(xml_file_successes + ".tmp"):
             with open(xml_file_successes + ".tmp", "r") as tmp_f:
                 content = tmp_f.read()
-                content = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', content)
+                content = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", "", content)
                 f.write(content)
-        f.write('\n    </testsuite>\n</testsuites>\n')
+        f.write("\n    </testsuite>\n</testsuites>\n")
 
     if os.path.exists(xml_file_errors_crashes + ".tmp"):
         os.remove(xml_file_errors_crashes + ".tmp")
     if os.path.exists(xml_file_successes + ".tmp"):
         os.remove(xml_file_successes + ".tmp")
-    
+
     log("Done.")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:
@@ -1224,7 +1509,12 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(build_dir, "config"))
         if not os.path.exists(os.path.join(build_dir, "screenshots")):
             os.makedirs(os.path.join(build_dir, "screenshots"))
-        if not ("SOFA_WITH_DEPRECATED_COMPONENTS:.*=ON" in open(os.path.join(build_dir, "CMakeCache.txt")).read() and "APPLICATION_GETDEPRECATEDCOMPONENTS:.*=ON" in open(os.path.join(build_dir, "CMakeCache.txt")).read()):
+        if not (
+            "SOFA_WITH_DEPRECATED_COMPONENTS:.*=ON"
+            in open(os.path.join(build_dir, "CMakeCache.txt")).read()
+            and "APPLICATION_GETDEPRECATEDCOMPONENTS:.*=ON"
+            in open(os.path.join(build_dir, "CMakeCache.txt")).read()
+        ):
             ignore_scenes_with_deprecated_components()
         ignore_scenes_with_missing_plugins()
         ignore_scenes_python_without_createscene()
@@ -1233,7 +1523,7 @@ if __name__ == "__main__":
         extract_warnings()
         extract_errors()
         extract_crashes()
-        if not sys.platform.startswith('darwin'):
+        if not sys.platform.startswith("darwin"):
             export_to_junit_xml()
     elif command == "print-summary":
         print_summary()
