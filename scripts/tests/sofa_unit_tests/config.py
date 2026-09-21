@@ -51,7 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sofa-unit-tests")
     parser.add_argument("--build-dir", default=None)
     parser.add_argument("--results-dir", default=None)
-    parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument("-j", "--jobs", type=int, dest="threads", default=1)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--filter", default=None)
     parser.add_argument("--exclude", default=None)
