@@ -14,8 +14,8 @@ import argparse
 import sys
 from typing import Sequence
 
-from . import runner
-from .config import build_config
+from sofa_scene_tests import runner
+from sofa_scene_tests.config import build_config
 
 EXIT_OK = 0
 EXIT_FAILURE = 1

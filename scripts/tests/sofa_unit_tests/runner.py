@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import threading
 from .utils import SubList, Logs
@@ -31,6 +31,33 @@ def _selected_binaries(cfg: Config) -> List[Tuple[str, Path]]:
             continue
         selected.append((name, binary))
     return selected
+
+
+def __print_summary(outcomes: reporting.Counts, test_results_dir: Path, failed_tests_names: Dict, crashed_tests_names: Dict) -> None:
+
+    passed = outcomes.test_total - outcomes.failures - outcomes.errors
+
+    print()
+    print("=" * 72)
+    print("SOFA unit test summary")
+    print(f"  Unit tests ran : {outcomes.test_total}")
+    print(f"  Passed: {passed}  Failed: {outcomes.failures}  Crash: {outcomes.errors}")
+    print(f"  Results dir     : {test_results_dir}")
+
+    if outcomes.failures + outcomes.errors:
+        print()
+        print("Failed tests:")
+        for tests_name in failed_tests_names:
+            print(f"  {tests_name}")
+            for case_name in failed_tests_names[tests_name]:
+                print(f"    {case_name}")
+        print()
+        print("Crashed tests:")
+        for tests_name in crashed_tests_names:
+            print(f"  {tests_name}")
+            for case_name in crashed_tests_names[tests_name]:
+                print(f"    {case_name}")
+
 
 
 def run_binary(
@@ -72,7 +99,7 @@ def run_binaries(selected, is_windows, results_dir, timeout, verbose ):
 
     while len(selected) > 0 :
         test_name, binary_path = selected.pop()
-        
+
         status = run_binary(
             test_name,
             binary_path,
@@ -82,14 +109,14 @@ def run_binaries(selected, is_windows, results_dir, timeout, verbose ):
         )
         outStream = f"{logs.msg_any(status.upper(),test_name)}"
         if(verbose == 1):
-            temp_failed, temp_crash, _, _, _ = reporting.getInsights(paths.binary_dir(results_dir, test_name) , test_name, binary_path, timeout, is_windows)
-            
+            temp_failed, temp_crash, _, _, _, _, _ = reporting.getInsights(paths.binary_dir(results_dir, test_name) , test_name, binary_path, timeout, is_windows)
+
             if((len(temp_failed) + len(temp_crash)) >0):
                 outStream += f"\n>>> ===== Reporting for {test_name} \n"
                 if(len(temp_failed) > 0):
                     outStream += "\n".join(temp_failed)
                     outStream += "\n"
-                
+
                 if(len(temp_crash) > 0):
                     outStream += "\n".join(temp_crash)
                     outStream += "\n"
@@ -145,11 +172,13 @@ def run_all(cfg: Config) -> reporting.Counts:
         for t in threads:
             t.join()
 
-
-    return reporting.build_reports(
+    count, failed_tests_names, crashed_tests_names = reporting.build_reports(
         cfg.results_dir,
         selected,
         duration_seconds=time.time() - start,
         timeout=cfg.timeout,
         is_windows=is_windows,
     )
+    __print_summary(count, cfg.results_dir, failed_tests_names, crashed_tests_names )
+
+    return count

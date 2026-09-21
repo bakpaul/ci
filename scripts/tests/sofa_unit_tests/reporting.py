@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Dict
 
 from . import classify, isolation, paths
-
 
 @dataclass(frozen=True)
 class Counts:
@@ -101,15 +100,19 @@ def _write_summary_txt(path: Path, counts: Counts) -> None:
 
 
 def getInsights(
-    binary_report_dir, 
-    test_name, 
+    binary_report_dir,
+    test_name,
     binary_path,
     timeout,
     is_windows: Optional[bool] = None
-)  -> tuple(List[str], List[str], int, int, int):
+)  -> tuple(List[str], List[str], List[str], List[str], int, int, int):
 
     failed_blocks: List[str] = []
     crashed_blocks: List[str] = []
+
+
+    failed_tests_names: List[str] = []
+    crashed_tests_names: List[str] = []
 
     top_report = classify.parse_report(paths.report_xml_path(binary_report_dir))
 
@@ -124,7 +127,8 @@ def getInsights(
         for tc in top_report.testcases:
             if tc.failed:
                 failed_blocks.append(_render_type_a(test_name, tc))
-        return failed_blocks, crashed_blocks, test_total, disabled_tests, failures
+                failed_tests_names.append(tc.name)
+        return failed_blocks, crashed_blocks, failed_tests_names, crashed_tests_names, test_total, disabled_tests, failures
 
 
     subtests_root = paths.subtests_dir(binary_report_dir)
@@ -139,7 +143,8 @@ def getInsights(
     if enumerated is None:
         exit_status_text = _read_exit_status(binary_report_dir)
         crashed_blocks.append(_render_type_d(test_name, exit_status_text))
-        return failed_blocks, crashed_blocks, test_total, disabled_tests, failures
+        ## Nothing ot add to crashed_tests_names as in this case it is the full test suite that crashed.
+        return failed_blocks, crashed_blocks, failed_tests_names, crashed_tests_names, test_total, disabled_tests, failures
 
 
     for ordinal, (suite, case) in enumerate(enumerated, start=1):
@@ -151,6 +156,7 @@ def getInsights(
             crashed_blocks.append(
                 _render_type_c(test_name, ordinal, suite, case, exit_status_text)
             )
+            crashed_tests_names.append(case)
             continue
 
 
@@ -164,9 +170,10 @@ def getInsights(
         for tc in parsed.testcases:
             if tc.failed:
                 failed_blocks.append(_render_type_b(test_name, ordinal, tc))
+                failed_tests_names.append(tc.name)
 
 
-    return failed_blocks, crashed_blocks, test_total, disabled_tests, failures
+    return failed_blocks, crashed_blocks, failed_tests_names, crashed_tests_names, test_total, disabled_tests, failures
 
 def build_reports(
     results_dir: Path,
@@ -175,21 +182,31 @@ def build_reports(
     duration_seconds: float,
     timeout,
     is_windows: Optional[bool] = None,
-) -> Counts:
+) -> tuple(Counts, List[str], List[str]):
     """Build failed_tests, crashed_tests, and summary.txt for one completed run (spec §8)."""
     results_dir = Path(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
+
+    failed_tests_names: Dict = {}
+    crashed_tests_names: Dict = {}
     failed_blocks: List[str] = []
     crashed_blocks: List[str] = []
     test_total = 0
     disabled_tests = 0
     failures = 0
 
+
     for test_name, binary_path in executed:
         binary_report_dir = paths.binary_dir(results_dir, test_name)
 
-        temp_failed, temp_crash, add_test_total, add_disabled_tests, add_failures = getInsights(binary_report_dir, test_name, binary_path, timeout, is_windows)
-        
+        temp_failed, temp_crash, failed_case_names, crashed_case_names, add_test_total, add_disabled_tests, add_failures = getInsights(binary_report_dir, test_name, binary_path, timeout, is_windows)
+
+        if len(temp_failed):
+            failed_tests_names[test_name] = failed_case_names
+        if len(temp_crash):
+            crashed_tests_names[test_name] = crashed_case_names
+
+
         failed_blocks.extend(temp_failed)
         crashed_blocks.extend(temp_crash)
         test_total += add_test_total
@@ -208,4 +225,4 @@ def build_reports(
         duration=int(duration_seconds),
     )
     _write_summary_txt(paths.summary_txt_path(results_dir), counts)
-    return counts
+    return counts, failed_tests_names, crashed_tests_names
