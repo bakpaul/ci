@@ -17,7 +17,7 @@ from .paths import posix_str, scene_log_path
 from .utils import SceneOutcome
 
 # Summary files are zero-byte when their category has no entries (documented choice).
-_SUMMARY_FILES = ("errors.txt", "warnings.txt", "crashes.txt")
+_SUMMARY_FILES = ("scene_errors.txt", "scene_warnings.txt", "scene_crashes.txt")
 
 
 def initialize_report_dir(test_results_dir: Path) -> None:
@@ -100,21 +100,21 @@ def record_summary_entries(
 
     if classification.is_error:
         _append_summary_entry(
-            test_results_dir / "errors.txt",
+            test_results_dir / "scene_errors.txt",
             plan.path,
             log_rel,
             classification.error_lines,
         )
     if classification.is_warning:
         _append_summary_entry(
-            test_results_dir / "warnings.txt",
+            test_results_dir / "scene_warnings.txt",
             plan.path,
             log_rel,
             classification.warning_lines,
         )
     if classification.is_crash:
         _append_summary_entry(
-            test_results_dir / "crashes.txt",
+            test_results_dir / "scene_crashes.txt",
             plan.path,
             log_rel,
             classification.crash_lines,

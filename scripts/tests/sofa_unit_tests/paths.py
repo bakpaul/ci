@@ -16,11 +16,11 @@ def summary_txt_path(results_dir: Path) -> Path:
 
 
 def failed_tests_path(results_dir: Path) -> Path:
-    return Path(results_dir) / "failed_tests"
+    return Path(results_dir) / "unit_failures.txt"
 
 
 def crashed_tests_path(results_dir: Path) -> Path:
-    return Path(results_dir) / "crashed_tests"
+    return Path(results_dir) / "unit_crashes.txt"
 
 
 def binary_dir(results_dir: Path, test_name: str) -> Path:
