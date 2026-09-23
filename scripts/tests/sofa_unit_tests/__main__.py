@@ -53,7 +53,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_USAGE_ERROR
 
-    return exit_code_for_outcome(any_crash=counts.errors > 0, any_failure=counts.failures > 0)
+    return exit_code_for_outcome(any_crash=counts.crashes > 0, any_failure=counts.failures > 0)
 
 
 if __name__ == "__main__":

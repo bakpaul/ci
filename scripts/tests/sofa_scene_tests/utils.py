@@ -6,6 +6,11 @@ concurrent workers never interleave half-lines.
 """
 
 import os
+from dataclasses import dataclass
+
+from .classify import Classification, RunResult
+from .discovery import ScenePlan
+import enum
 
 
 class Logs:
@@ -119,3 +124,50 @@ class SubList(object):
             raise StopIteration  # Done iterating
         self.currId += 1
         return self.origList[self.currId-1]
+
+
+# ---------------------------------------------------------------------------
+# Single-scene test driver (§3.5.2, §4.3, §6.1, §7)
+# ---------------------------------------------------------------------------
+
+
+class SceneStatus(enum.Enum):
+    """Outcome of one scene test."""
+
+    PASSED = "passed"
+    FAILED = "failed"
+    CRASHED = "crashed"
+    SKIPPED = "skipped"
+
+
+@dataclass(frozen=True)
+class SceneOutcome:
+    """The result of running one scene test end-to-end.
+
+    `message` carries the skip reason for SKIPPED and the failure details for
+    FAILED; it is empty for PASSED.  `result` and `classification` are None for
+    outcomes decided before runSofa was launched (ignored, missing add target,
+    missing plugin).
+    """
+
+    plan: ScenePlan
+    status: SceneStatus
+    message: str = ""
+    result: RunResult | None = None
+    classification: Classification | None = None
+
+    @property
+    def passed(self) -> bool:
+        return self.status is SceneStatus.PASSED
+
+    @property
+    def failed(self) -> bool:
+        return self.status is SceneStatus.FAILED
+
+    @property
+    def crashed(self) -> bool:
+        return self.status is SceneStatus.CRASHED
+
+    @property
+    def skipped(self) -> bool:
+        return self.status is SceneStatus.SKIPPED

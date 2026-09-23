@@ -35,16 +35,16 @@ def _selected_binaries(cfg: Config) -> List[Tuple[str, Path]]:
 
 def __print_summary(outcomes: reporting.Counts, test_results_dir: Path, failed_tests_names: Dict, crashed_tests_names: Dict) -> None:
 
-    passed = outcomes.test_total - outcomes.failures - outcomes.errors
+    passed = outcomes.test_total - outcomes.failures - outcomes.crashes
 
     print()
     print("=" * 72)
     print("SOFA unit test summary")
     print(f"  Unit tests ran : {outcomes.test_total}")
-    print(f"  Passed: {passed}  Failed: {outcomes.failures}  Crash: {outcomes.errors}")
+    print(f"  Passed: {passed}  Failed: {outcomes.failures}  Crash: {outcomes.crashes}")
     print(f"  Results dir     : {test_results_dir}")
 
-    if outcomes.failures + outcomes.errors:
+    if outcomes.failures + outcomes.crashes:
         print()
         print("Failed tests:")
         for tests_name in failed_tests_names:

@@ -14,7 +14,6 @@ files at the root are appended to afterwards, single-threaded, by
 and a counter, each manipulated through operations that are atomic on their own.
 """
 
-import enum
 import fnmatch
 import itertools
 import os
@@ -23,7 +22,6 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -34,8 +32,9 @@ from .reporting import (
     initialize_report_dir,
     record_summary_entries,
     write_scene_log,
+    _write_summary_txt
 )
-from .utils import Logs
+from .utils import Logs, SceneOutcome, SceneStatus
 
 
 def _build_env(config) -> dict[str, str]:
@@ -132,46 +131,6 @@ def run_scene(config, plan: ScenePlan) -> RunResult:
     )
 
 
-# ---------------------------------------------------------------------------
-# Single-scene test driver (§3.5.2, §4.3, §6.1, §7)
-# ---------------------------------------------------------------------------
-
-
-class SceneStatus(enum.Enum):
-    """Outcome of one scene test."""
-
-    PASSED = "passed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
-
-
-@dataclass(frozen=True)
-class SceneOutcome:
-    """The result of running one scene test end-to-end.
-
-    `message` carries the skip reason for SKIPPED and the failure details for
-    FAILED; it is empty for PASSED.  `result` and `classification` are None for
-    outcomes decided before runSofa was launched (ignored, missing add target,
-    missing plugin).
-    """
-
-    plan: ScenePlan
-    status: SceneStatus
-    message: str = ""
-    result: RunResult | None = None
-    classification: Classification | None = None
-
-    @property
-    def passed(self) -> bool:
-        return self.status is SceneStatus.PASSED
-
-    @property
-    def failed(self) -> bool:
-        return self.status is SceneStatus.FAILED
-
-    @property
-    def skipped(self) -> bool:
-        return self.status is SceneStatus.SKIPPED
 
 
 def _failure_details(plan: ScenePlan, classification: Classification) -> str:
@@ -210,7 +169,7 @@ def run_scene_test(
     if plan.add_target_missing:
         write_scene_log(config.test_results_dir, plan, None)
         return SceneOutcome(
-            plan, SceneStatus.FAILED, f"Scene file not found: {plan.path}"
+            plan, SceneStatus.CRASHED, f"Scene file not found: {plan.path}"
         )
 
     # --- Plugin availability check (§4.3) ---
@@ -229,6 +188,13 @@ def run_scene_test(
         return SceneOutcome(
             plan, SceneStatus.PASSED, "", result, classification
         )
+
+
+    if result.exit_code != 0:
+        return SceneOutcome(
+            plan, SceneStatus.CRASHED, "", result, classification
+        )
+
     return SceneOutcome(
         plan,
         SceneStatus.FAILED,
@@ -297,6 +263,7 @@ _STATUS_LABEL = {
     SceneStatus.PASSED: "PASSED",
     SceneStatus.FAILED: "FAILED",
     SceneStatus.SKIPPED: "SKIPPED",
+    SceneStatus.CRASHED: "CRASHED",
 }
 
 
@@ -385,7 +352,7 @@ def write_summaries(
         )
 
 
-def _print_summary(outcomes: Sequence[SceneOutcome], test_results_dir: Path) -> None:
+def _print_summary(outcomes: Sequence[SceneOutcome], test_results_dir: Path, duration : float) -> None:
     """Print the end-of-run summary.
 
     @param outcomes Every outcome of the session, in completion order.
@@ -393,19 +360,26 @@ def _print_summary(outcomes: Sequence[SceneOutcome], test_results_dir: Path) -> 
     """
     failed = [o for o in outcomes if o.failed]
     passed = sum(1 for o in outcomes if o.passed)
+    crashed = [o for o in outcomes if o.crashed]
     skipped = sum(1 for o in outcomes if o.skipped)
 
     print()
     print("=" * 72)
     print("SOFA scene test summary")
     print(f"  Scenes selected : {len(outcomes)}")
-    print(f"  Passed: {passed}  Failed: {len(failed)}  Skipped: {skipped}")
+    print(f"  Passed: {passed}  Failed: {len(failed)}  Crashed: {len(crashed)}")
+    print(f"  Skipped: {skipped}  Duration: {duration:.3f}s" )
     print(f"  Results dir     : {test_results_dir}")
 
     if failed:
         print()
         print("Failed scenes:")
         for outcome in sorted(failed, key=lambda o: o.plan.test_id):
+            print(f"  {outcome.plan.test_id}")
+    if crashed:
+        print()
+        print("Crashed scenes:")
+        for outcome in sorted(crashed, key=lambda o: o.plan.test_id):
             print(f"  {outcome.plan.test_id}")
 
 
@@ -421,6 +395,8 @@ def run_all(config) -> list[SceneOutcome]:
     @param config Configuration of the run (directories, filters, threads, verbosity).
     @return The outcomes of every scene that ran; empty when nothing was selected.
     """
+    start = time.time()
+
     plans, discovered = selected_scenes(config)
     filtering = bool(config.filters or config.excludes)
 
@@ -474,5 +450,8 @@ def run_all(config) -> list[SceneOutcome]:
         # finish; their logs are on disk already.
         write_summaries(outcomes, plans, config.test_results_dir)
 
-    _print_summary(outcomes, config.test_results_dir)
+    duration_second = time.time()-start
+
+    _print_summary(outcomes, config.test_results_dir, duration_second)
+    _write_summary_txt(config.test_results_dir / "summary.txt", outcomes, duration_second)
     return outcomes

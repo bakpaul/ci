@@ -18,7 +18,7 @@ class Counts:
     test_total: int
     disabled_tests: int
     failures: int
-    errors: int
+    crashes: int
     duration: int
 
 
@@ -93,7 +93,7 @@ def _write_summary_txt(path: Path, counts: Counts) -> None:
         f"test_total={counts.test_total}",
         f"disabled_tests={counts.disabled_tests}",
         f"failures={counts.failures}",
-        f"errors={counts.errors}",
+        f"crashes={counts.crashes}",
         f"duration={counts.duration}",
     ]
     path.write_text("\n".join(lines) + "\n")
@@ -221,7 +221,7 @@ def build_reports(
         test_total=test_total,
         disabled_tests=disabled_tests,
         failures=failures,
-        errors=len(crashed_blocks),
+        crashes=len(crashed_blocks),
         duration=int(duration_seconds),
     )
     _write_summary_txt(paths.summary_txt_path(results_dir), counts)

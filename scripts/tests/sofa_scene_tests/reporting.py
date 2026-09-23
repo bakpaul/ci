@@ -9,10 +9,12 @@ composes both for callers that have no concurrency to worry about.
 """
 
 from pathlib import Path
+from typing import Sequence
 
 from .classify import Classification, RunResult
 from .discovery import ScenePlan
 from .paths import posix_str, scene_log_path
+from .utils import SceneOutcome
 
 # Summary files are zero-byte when their category has no entries (documented choice).
 _SUMMARY_FILES = ("errors.txt", "warnings.txt", "crashes.txt")
@@ -132,3 +134,21 @@ def record_scene_result(
     """
     write_scene_log(test_results_dir, plan, result)
     record_summary_entries(test_results_dir, plan, result, classification)
+
+
+def _write_summary_txt(path: Path, outcomes: Sequence[SceneOutcome], duration_second : float) -> None:
+
+    failed = sum(1 for o in outcomes if o.failed)
+    crashed = sum(1 for o in outcomes if o.crashed)
+    skipped = sum(1 for o in outcomes if o.skipped)
+
+
+    lines = [
+        f"test_suite={1}",
+        f"test_total={len(outcomes)}",
+        f"disabled_tests={skipped}",
+        f"failures={failed}",
+        f"crashes={crashed}",
+        f"duration={duration_second:.3f}",
+    ]
+    path.write_text("\n".join(lines) + "\n")

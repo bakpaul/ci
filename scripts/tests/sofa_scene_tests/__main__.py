@@ -177,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not outcomes:
         return EXIT_FAILURE
 
-    return EXIT_FAILURE if any(o.failed for o in outcomes) else EXIT_OK
+    return EXIT_FAILURE if any(o.failed or o.crashed for o in outcomes) else EXIT_OK
 
 
 if __name__ == "__main__":
