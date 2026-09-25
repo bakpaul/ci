@@ -33,8 +33,6 @@ if __name__ == "__main__":
         if test_ran[i]:
             with open(results_files[i]) as file:
                 for line in file:
-                    print(line)
-
                     res_type = line.strip().split('=')[0]
                     value = int(line.strip().split('=')[1].split('.')[0])
                     if res_type=="test_total":
