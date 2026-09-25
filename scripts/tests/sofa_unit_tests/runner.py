@@ -44,13 +44,14 @@ def __print_summary(outcomes: reporting.Counts, test_results_dir: Path, failed_t
     print(f"  Passed: {passed}  Failed: {outcomes.failures}  Crash: {outcomes.crashes}")
     print(f"  Results dir     : {test_results_dir}")
 
-    if outcomes.failures + outcomes.crashes:
+    if outcomes.failures:
         print()
         print("Failed tests:")
         for tests_name in failed_tests_names:
             print(f"  {tests_name}")
             for case_name in failed_tests_names[tests_name]:
                 print(f"    {case_name}")
+    if outcomes.crashes:
         print()
         print("Crashed tests:")
         for tests_name in crashed_tests_names:
