@@ -7,6 +7,10 @@ BRANCH_OR_PR_NUMBER=$(echo $GITHUB_REF | awk -F '/' '{print $3}')
 if [ "$REF_TYPE" = "pull" ]; then
     echo "Setting env for PR #$BRANCH_OR_PR_NUMBER"
     WORK_FOLDER=$GITHUB_WORKSPACE/PR$BRANCH_OR_PR_NUMBER
+elif [ "$GITHUB_WORKFLOW" == "Generate regression references" ]; then
+    BRANCH_OR_PR_NUMBER=$(jq -r '.inputs.pr_number' "$GITHUB_EVENT_PATH")
+    echo "Setting env for PR #$BRANCH_OR_PR_NUMBER"
+    WORK_FOLDER=$GITHUB_WORKSPACE/PR$BRANCH_OR_PR_NUMBER
 else
     if [ "$GITHUB_REPOSITORY_OWNER" != "sofa-framework" ]; then
         echo "This commit doesn't belong to the sofa-framework repository, exiting the job"
@@ -30,7 +34,7 @@ if [ "$RUNNER_OS" = "Windows" ]; then
 
     echo  "Cleaning old symlink"
     cmd //c "rmdir C:\sl-gha" > /dev/null || true
-    
+
 	#Use symbolic link to reduce path length
 	cmd //c "mklink /D C:\sl-gha\ ${WORK_FOLDER//\//\\}" > /dev/null
 	echo "Using simlink '$WORK_FOLDER' to reduce path length problem on Windows"
@@ -50,7 +54,7 @@ fi
 
 
 echo "Current environement is:"
-env 
+env
 
 echo "Python3 env details"
 python3 --version
@@ -60,4 +64,4 @@ python3 -m site
 
 echo $WORK_FOLDER>$GITHUB_WORKSPACE/$GITHUB_WORKFLOW_SHA
 
-exit 0 
+exit 0
