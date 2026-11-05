@@ -75,17 +75,12 @@ def open_ref_pr(repo, branch, scenes, oses):
     return None, f"{r.status_code} {r.text[:200]}"
 
 
-def append_depends_on(urls):
+def get_depends_on_to_add(urls):
     """Add `[ci-depends-on url]` lines to the SOFA-PR description."""
     pr_data = pr_info.fetch_pr_data()
     body = pr_data.get("body") or ""
     lines = [f"[ci-depends-on {u}]" for u in urls if f"[ci-depends-on {u}]" not in body]
-    if not lines:
-        return
-    new_body = body.rstrip("\r\n") + "\r\n" + "\r\n".join(lines) + "\r\n"
-    r = api("PATCH", f"repos/sofa-framework/sofa/pulls/{PR_NUMBER}", json={"body": new_body})
-    if r.status_code != 200:
-        print(f"Failed to update the SOFA-PR description: {r.status_code} {r.text}")
+    return lines
 
 
 def main():
@@ -111,16 +106,18 @@ def main():
         else:
             new_depends_on.append({"repo": repo["full_name"], "url": url, "oses": oses, "scenes": scenes})
 
+    depends_on_to_add = []
     if new_depends_on:
-        append_depends_on([e["url"] for e in new_depends_on])
+        depends_on_to_add = get_depends_on_to_add([e["url"] for e in new_depends_on])
+
 
     failed = failed_os_jobs()
 
     message = f"## Regression references generation (branch `{branch}`)\n"
     if new_depends_on:
-        message += "\n### New `ci-depends-on` added to the description\n"
-        for e in new_depends_on:
-            message += f"- {e['repo']}: {e['url']} ({', '.join(e['oses'])})\n"
+        message += "\n### New `ci-depends-on` **you must add** to the description\n"
+        for e in depends_on_to_add:
+            message += f"- {e})\n"
     if other_ref_prs:
         message += ("\n### Other REF-PRs opened\nThese must be **merged by you** into the targeted PR for the new "
                     "references to be taken into account.\n")
